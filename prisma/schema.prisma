@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public"]
+}
+
+model journal_entries {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  space_id   String    @db.Uuid
+  user_id    String?   @db.Uuid
+  content    String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  spaces     spaces    @relation(fields: [space_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model space_members {
+  user_id   String   @db.Uuid
+  joined_at DateTime @default(now()) @db.Timestamptz(6)
+  role      String?
+  space_id  String   @db.Uuid
+  spaces    spaces   @relation(fields: [space_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([user_id, space_id])
+  @@schema("public")
+}
+
+model spaces {
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  name            String?
+  invite_code     String?
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  journal_entries journal_entries[]
+  space_members   space_members[]
+
+  @@schema("public")
+}
+
+model users {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username  String
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  @@schema("public")
+}
