@@ -9,7 +9,6 @@ export class AuthController {
     @UseGuards(SupabaseAuthGuard)
     @Get("me")
     getMe(@Req() req) {
-        console.log(req);
         return this.authService.getCurrentUser(req.user.id);
     }
 
