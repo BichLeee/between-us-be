@@ -8,18 +8,17 @@ datasource db {
 }
 
 model journal_entries {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  space_id   String    @db.Uuid
-  user_id    String?   @db.Uuid
-  content    String?
-  order      Int
-  created_at DateTime? @default(now())
-  updated_at DateTime  @default(now())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  space_id    String    @db.Uuid
+  user_id     String?   @db.Uuid
+  content     String?
+  created_at  DateTime? @default(now())
+  entry_order Int
+  updated_at  DateTime  @default(now())
+  spaces      spaces    @relation(fields: [space_id], references: [id])
+  user        users?    @relation(fields: [user_id], references: [id])
 
-  spaces spaces @relation(fields: [space_id], references: [id])
-  user   users? @relation(fields: [user_id], references: [id])
-
-  @@index([space_id, order])
+  @@index([space_id, entry_order], map: "journal_entries_space_id_order_idx")
   @@schema("public")
 }
 
@@ -28,9 +27,8 @@ model space_members {
   joined_at DateTime @default(now()) @db.Timestamptz(6)
   role      String?
   space_id  String   @db.Uuid
-
-  spaces spaces @relation(fields: [space_id], references: [id])
-  user   users  @relation(fields: [user_id], references: [id])
+  spaces    spaces   @relation(fields: [space_id], references: [id])
+  user      users    @relation(fields: [user_id], references: [id])
 
   @@id([user_id, space_id])
   @@schema("public")
@@ -48,13 +46,12 @@ model spaces {
 }
 
 model users {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username   String
-  email      String   @unique
-  name       String?
-  createdAt  DateTime @default(now())
-  updated_at DateTime @default(now())
-
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username       String
+  email          String            @unique
+  name           String?
+  createdAt      DateTime          @default(now())
+  updated_at     DateTime          @default(now())
   journalEntries journal_entries[]
   spaceMembers   space_members[]
 

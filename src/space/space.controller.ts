@@ -1,5 +1,5 @@
 import { SpaceService } from "./space.service";
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { SupabaseAuthGuard } from "../auth/supabase-auth.guard";
 import { SpaceSocketService } from "./space-socket.service";
 
@@ -38,5 +38,11 @@ export class SpaceController {
     @Post(":spaceId/create-line")
     createLine(@Param("spaceId") spaceId: string, @Body() body: { afterLineId?: string }, @Req() req) {
         return this.spaceService.createLine(spaceId, req.user.id, body.afterLineId);
+    }
+
+    @UseGuards(SupabaseAuthGuard)
+    @Post(":spaceId/leave")
+    leaveSpace(@Param("spaceId") spaceId: string, @Req() req) {
+        return this.spaceService.leaveSpace(spaceId, req.user.id);
     }
 }

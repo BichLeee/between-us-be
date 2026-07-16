@@ -89,17 +89,17 @@ export class SpaceService {
         };
     }
     async getSpaceContent(spaceId: string, userId: string) {
-        // check permission
-        const member = await prisma.space_members.findUnique({
-            where: {
-                user_id_space_id: {
-                    user_id: userId,
-                    space_id: spaceId,
-                },
-            },
-        });
+        const members: any[] = await prisma.$queryRaw`
+            SELECT
+                sm.*,
+                u.*
+            FROM space_members sm
+            JOIN users u
+                ON sm.user_id = u.id
+            WHERE sm.space_id = ${spaceId};
+        `;
 
-        if (!member) {
+        if (!members.find((m) => m.user_id === userId)) {
             throw new ForbiddenException("No access to this space");
         }
 
@@ -109,12 +109,12 @@ export class SpaceService {
             include: {
                 journal_entries: {
                     orderBy: {
-                        order: "asc",
+                        entry_order: "asc",
                     },
                     select: {
                         id: true,
                         content: true,
-                        order: true,
+                        entry_order: true,
                         user_id: true,
                         created_at: true,
                     },
@@ -127,9 +127,11 @@ export class SpaceService {
         }
 
         return {
+            ...space,
             id: space.id,
             name: space.name,
             entries: space.journal_entries,
+            members: members,
         };
     }
     async createLine(spaceId: string, userId: string, afterLineId?: string) {
@@ -149,9 +151,7 @@ export class SpaceService {
 
         let newOrder = 1000;
 
-        // =========================================
-        // CASE 1: insert after a specific line
-        // =========================================
+        // insert after a specific line
         if (afterLineId) {
             const current = await prisma.journal_entries.findUnique({
                 where: { id: afterLineId },
@@ -164,44 +164,104 @@ export class SpaceService {
             const next = await prisma.journal_entries.findFirst({
                 where: {
                     space_id: spaceId,
-                    order: { gt: current.order },
+                    entry_order: { gt: current.entry_order },
                 },
-                orderBy: { order: "asc" },
+                orderBy: { entry_order: "asc" },
             });
 
             if (next) {
-                // 🔥 insert between
-                newOrder = Math.floor((current.order + next.order) / 2);
+                // insert between
+                newOrder = Math.floor((current.entry_order + next.entry_order) / 2);
             } else {
-                // 🔥 append after last
-                newOrder = current.order + 1000;
+                // append after last
+                newOrder = current.entry_order + 1000;
             }
         }
 
-        // =========================================
-        // CASE 2: no afterLineId → append to end
-        // =========================================
+        // no afterLineId, append to end
         else {
             const last = await prisma.journal_entries.findFirst({
                 where: { space_id: spaceId },
-                orderBy: { order: "desc" },
+                orderBy: { entry_order: "desc" },
             });
 
             if (last) {
-                newOrder = last.order + 1000;
+                newOrder = last.entry_order + 1000;
             }
         }
 
-        // =========================================
         // CREATE LINE
-        // =========================================
         return prisma.journal_entries.create({
             data: {
                 space_id: spaceId,
                 user_id: userId,
                 content: "",
-                order: newOrder,
+                entry_order: newOrder,
             },
         });
+    }
+    async deleteLine(lineId: string) {
+        await prisma.journal_entries.delete({
+            where: { id: lineId },
+        });
+    }
+
+    async leaveSpace(spaceId: string, userId: string) {
+        // members
+        const members = await prisma.space_members.findMany({
+            where: {
+                space_id: spaceId,
+                user_id: { not: userId },
+            },
+        });
+
+        //is owner
+        if (members.find((m) => m.role === "owner")?.user_id === userId) {
+            if (members.length > 1) {
+                // transfer ownership to another member and remove the current owner
+                await prisma.space_members.update({
+                    where: {
+                        user_id_space_id: {
+                            space_id: spaceId,
+                            user_id: members[0].user_id,
+                        },
+                    },
+                    data: {
+                        role: "owner",
+                    },
+                });
+                // delete the current owner
+                await prisma.space_members.delete({
+                    where: {
+                        user_id_space_id: {
+                            space_id: spaceId,
+                            user_id: userId,
+                        },
+                    },
+                });
+            } else {
+                // delete the space and all its content
+                await prisma.journal_entries.deleteMany({
+                    where: {
+                        space_id: spaceId,
+                    },
+                });
+                await prisma.spaces.delete({
+                    where: {
+                        id: spaceId,
+                    },
+                });
+            }
+        } else {
+            // delete the member
+            await prisma.space_members.delete({
+                where: {
+                    user_id_space_id: {
+                        space_id: spaceId,
+                        user_id: userId,
+                    },
+                },
+            });
+        }
     }
 }

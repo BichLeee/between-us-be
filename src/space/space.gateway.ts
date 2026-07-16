@@ -72,13 +72,25 @@ export class SpaceGateway {
 
         // 🔐 (optional) you should extract userId from auth instead
         // const userId = client.data.user.id;
-
         const newLine = await this.spacesService.createLine(spaceId, userId, afterOrder);
 
         // 📡 broadcast to everyone in the space
         this.server.to(`space:${spaceId}`).emit("line_created", newLine);
 
         return newLine;
+    }
+
+    // ===== DELETE =====
+    @SubscribeMessage("delete_line")
+    async handleDeleteLine(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() payload: { spaceId: string; lineId: string; userId: string },
+    ) {
+        const { spaceId, lineId, userId } = payload;
+
+        await this.spacesService.deleteLine(spaceId, lineId, userId);
+
+        this.server.to(`space:${spaceId}`).emit("line_deleted", { lineId });
     }
 
     // ===== DISCONNECT =====
